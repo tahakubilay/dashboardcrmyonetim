@@ -404,7 +404,7 @@ npm run dev
 # Build
 npm run build
 
-# Type check
+# Type check 
 npm run type-check
 ```
 

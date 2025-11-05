@@ -51,7 +51,7 @@ backend/
 │   ├── settings.py            # Artifact #1'den
 │   ├── urls.py                # Artifact #1'den
 │   ├── wsgi.py                # Artifact #1'den
-│   └── celery.py              # Artifact #1'den
+│   └── celery.py              # Artifact #1'den 
 ├── core/
 │   ├── __init__.py            # Artifact #5'ten
 │   ├── apps.py                # Artifact #5'ten

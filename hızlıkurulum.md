@@ -37,7 +37,7 @@ docker-compose up --build
  *    - Artifact #17: src/app/login/page.tsx + src/app/page.tsx
  *    - Artifact #18: src/app/companies/*.tsx + src/components/forms/company-form-modal.tsx
  *    - Artifact #19: src/components/ui/*.tsx (Button, Card, Input, vb.)
- *    - Artifact #20: src/components/tables/data-table.tsx
+ *    - Artifact #20: src/components/tables/data-table.tsx 
  *    - Artifact #21: src/app/brands/*.tsx + src/components/forms/brand-form-modal.tsx
  *    - Artifact #22: src/app/branches/*.tsx + src/components/forms/branch-form-modal.tsx
  *    - Artifact #23: src/app/people/*.tsx + src/components/forms/person-form-modal.tsx
