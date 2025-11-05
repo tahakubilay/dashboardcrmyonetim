@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, Prefetch
 from django.utils import timezone
 from datetime import timedelta
 
@@ -35,7 +35,6 @@ from .filters import (
 
 class CompanyViewSet(viewsets.ModelViewSet):
     """Şirket ViewSet"""
-    queryset = Company.objects.all().select_related().prefetch_related('brands')
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = CompanyFilter
@@ -51,13 +50,22 @@ class CompanyViewSet(viewsets.ModelViewSet):
         return CompanyDetailSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # Sayıları annotate et
-        queryset = queryset.annotate(
-            brand_count=Count('brands'),
-            total_branches=Count('brands__branches'),
-            total_people=Count('brands__branches__people')
-        )
+        """Optimize query with annotations"""
+        queryset = Company.objects.all()
+        
+        # List view için optimize edilmiş query
+        if self.action == 'list':
+            queryset = queryset.annotate(
+                brand_count=Count('brands', distinct=True),
+                total_branches=Count('brands__branches', distinct=True),
+                total_people=Count('brands__branches__people', distinct=True)
+            ).select_related().prefetch_related('brands')
+        else:
+            # Detail view için daha detaylı prefetch
+            queryset = queryset.prefetch_related(
+                Prefetch('brands', queryset=Brand.objects.all()[:5])
+            )
+        
         return queryset
 
     @action(detail=True, methods=['get'])
@@ -95,6 +103,33 @@ class CompanyViewSet(viewsets.ModelViewSet):
         company.save()
         return Response({'is_active': company.is_active})
 
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        """Toplu silme"""
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'error': 'ids gerekli'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        deleted_count = Company.objects.filter(id__in=ids).delete()[0]
+        return Response({'deleted_count': deleted_count})
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """Export (Excel/PDF)"""
+        from .utils import export_companies_to_excel, export_companies_to_pdf
+        
+        export_format = request.query_params.get('format', 'excel')
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        if export_format == 'excel':
+            file_url = export_companies_to_excel(queryset)
+            return Response({'download_url': file_url, 'format': 'excel'})
+        elif export_format == 'pdf':
+            file_url = export_companies_to_pdf(queryset)
+            return Response({'download_url': file_url, 'format': 'pdf'})
+        
+        return Response({'error': 'Geçersiz format'}, status=status.HTTP_400_BAD_REQUEST)
+
 
 # ============================================
 # BRAND VIEWSET
@@ -102,7 +137,6 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
 class BrandViewSet(viewsets.ModelViewSet):
     """Marka ViewSet"""
-    queryset = Brand.objects.all().select_related('company')
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = BrandFilter
@@ -116,6 +150,9 @@ class BrandViewSet(viewsets.ModelViewSet):
         elif self.action == 'create':
             return BrandCreateSerializer
         return BrandDetailSerializer
+
+    def get_queryset(self):
+        return Brand.objects.select_related('company').prefetch_related('branches')
 
     @action(detail=True, methods=['get'])
     def branches(self, request, pk=None):
@@ -136,6 +173,16 @@ class BrandViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
 
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        """Toplu silme"""
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'error': 'ids gerekli'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        deleted_count = Brand.objects.filter(id__in=ids).delete()[0]
+        return Response({'deleted_count': deleted_count})
+
 
 # ============================================
 # BRANCH VIEWSET
@@ -143,7 +190,6 @@ class BrandViewSet(viewsets.ModelViewSet):
 
 class BranchViewSet(viewsets.ModelViewSet):
     """Şube ViewSet"""
-    queryset = Branch.objects.all().select_related('brand', 'brand__company')
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = BranchFilter
@@ -159,11 +205,14 @@ class BranchViewSet(viewsets.ModelViewSet):
         return BranchDetailSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # Çalışan sayısını annotate et
-        queryset = queryset.annotate(
-            employee_count=Count('people', filter=Q(people__role__name='employee'))
-        )
+        queryset = Branch.objects.select_related('brand', 'brand__company')
+        
+        # Annotate employee count
+        if self.action == 'list':
+            queryset = queryset.annotate(
+                employee_count=Count('people', filter=Q(people__role__name='employee'))
+            )
+        
         return queryset
 
     @action(detail=True, methods=['get'])
@@ -194,6 +243,16 @@ class BranchViewSet(viewsets.ModelViewSet):
         }
         return Response(stats)
 
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        """Toplu silme"""
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'error': 'ids gerekli'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        deleted_count = Branch.objects.filter(id__in=ids).delete()[0]
+        return Response({'deleted_count': deleted_count})
+
 
 # ============================================
 # ROLE VIEWSET
@@ -216,7 +275,6 @@ class RoleViewSet(viewsets.ModelViewSet):
 
 class PersonViewSet(viewsets.ModelViewSet):
     """Kişi ViewSet"""
-    queryset = Person.objects.all().select_related('role', 'branch', 'branch__brand', 'branch__brand__company')
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = PersonFilter
@@ -230,6 +288,11 @@ class PersonViewSet(viewsets.ModelViewSet):
         elif self.action == 'create':
             return PersonCreateSerializer
         return PersonDetailSerializer
+
+    def get_queryset(self):
+        return Person.objects.select_related(
+            'role', 'branch', 'branch__brand', 'branch__brand__company'
+        )
 
     @action(detail=True, methods=['get'])
     def contracts(self, request, pk=None):
@@ -263,6 +326,16 @@ class PersonViewSet(viewsets.ModelViewSet):
         person.save()
         return Response({'is_active': person.is_active})
 
+    @action(detail=False, methods=['post'])
+    def bulk_delete(self, request):
+        """Toplu silme"""
+        ids = request.data.get('ids', [])
+        if not ids:
+            return Response({'error': 'ids gerekli'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        deleted_count = Person.objects.filter(id__in=ids).delete()[0]
+        return Response({'deleted_count': deleted_count})
+
 
 # ============================================
 # REPORT VIEWSET
@@ -270,7 +343,6 @@ class PersonViewSet(viewsets.ModelViewSet):
 
 class ReportViewSet(viewsets.ModelViewSet):
     """Rapor ViewSet"""
-    queryset = Report.objects.all().select_related('created_by', 'company', 'brand', 'branch', 'person')
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ReportFilter
@@ -282,6 +354,11 @@ class ReportViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return ReportListSerializer
         return ReportDetailSerializer
+
+    def get_queryset(self):
+        return Report.objects.select_related(
+            'created_by', 'company', 'brand', 'branch', 'person'
+        )
 
     @action(detail=False, methods=['post'])
     def generate(self, request):
@@ -307,50 +384,19 @@ class ReportViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=['get'])
-    def task_status(self, request):
-        """Rapor oluşturma durumunu kontrol et"""
-        from celery.result import AsyncResult
-        
-        task_id = request.query_params.get('task_id')
-        if not task_id:
-            return Response({'error': 'task_id gerekli'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        task = AsyncResult(task_id)
-        response = {
-            'task_id': task_id,
-            'status': task.state,
-        }
-        
-        if task.state == 'SUCCESS':
-            response['result'] = task.result
-        elif task.state == 'FAILURE':
-            response['error'] = str(task.info)
-        
-        return Response(response)
-
-    @action(detail=False, methods=['get'])
     def export(self, request):
         """Raporları export et (Excel/PDF)"""
-        export_format = request.query_params.get('format', 'excel')
+        from .utils import export_reports_to_excel, export_reports_to_pdf
         
-        # Filtreleri uygula
+        export_format = request.query_params.get('format', 'excel')
         queryset = self.filter_queryset(self.get_queryset())
         
         if export_format == 'excel':
-            from .utils import export_reports_to_excel
             file_path = export_reports_to_excel(queryset)
-            # Return file download response
-            return Response({
-                'download_url': file_path,
-                'format': 'excel'
-            })
+            return Response({'download_url': file_path, 'format': 'excel'})
         elif export_format == 'pdf':
-            from .utils import export_reports_to_pdf
             file_path = export_reports_to_pdf(queryset)
-            return Response({
-                'download_url': file_path,
-                'format': 'pdf'
-            })
+            return Response({'download_url': file_path, 'format': 'pdf'})
         
         return Response({'error': 'Geçersiz format'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -361,9 +407,6 @@ class ReportViewSet(viewsets.ModelViewSet):
 
 class ContractViewSet(viewsets.ModelViewSet):
     """Sözleşme ViewSet"""
-    queryset = Contract.objects.all().select_related(
-        'created_by', 'related_company', 'related_brand', 'related_branch', 'related_person'
-    )
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ContractFilter
@@ -376,42 +419,24 @@ class ContractViewSet(viewsets.ModelViewSet):
             return ContractListSerializer
         return ContractDetailSerializer
 
+    def get_queryset(self):
+        return Contract.objects.select_related(
+            'created_by', 'related_company', 'related_brand', 'related_branch', 'related_person'
+        )
+
     @action(detail=True, methods=['post'])
     def generate_pdf(self, request, pk=None):
         """Sözleşmeden PDF oluştur"""
         contract = self.get_object()
         from .tasks import generate_contract_pdf_task
         
-        task = generate_contract_pdf_task.delay(contract.id)
+        task = generate_contract_pdf_task.delay(str(contract.id))
         
         return Response({
             'task_id': task.id,
             'status': 'processing',
             'message': 'PDF oluşturuluyor...'
         }, status=status.HTTP_202_ACCEPTED)
-
-    @action(detail=True, methods=['post'])
-    def update_status(self, request, pk=None):
-        """Sözleşme durumunu güncelle"""
-        contract = self.get_object()
-        new_status = request.data.get('status')
-        
-        if new_status not in dict(Contract.STATUS_CHOICES):
-            return Response(
-                {'error': 'Geçersiz durum'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        contract.status = new_status
-        contract.save()
-        
-        return Response({'status': contract.status})
-
-    @action(detail=True, methods=['get'])
-    def version_history(self, request, pk=None):
-        """Sözleşme versiyon geçmişi"""
-        contract = self.get_object()
-        return Response(contract.versioning or {})
 
     @action(detail=False, methods=['get'])
     def expiring_soon(self, request):
@@ -435,9 +460,6 @@ class ContractViewSet(viewsets.ModelViewSet):
 
 class PromissoryNoteViewSet(viewsets.ModelViewSet):
     """Senet ViewSet"""
-    queryset = PromissoryNote.objects.all().select_related(
-        'created_by', 'related_company', 'related_brand', 'related_branch', 'related_person'
-    )
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = PromissoryNoteFilter
@@ -449,6 +471,11 @@ class PromissoryNoteViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return PromissoryNoteListSerializer
         return PromissoryNoteDetailSerializer
+
+    def get_queryset(self):
+        return PromissoryNote.objects.select_related(
+            'created_by', 'related_company', 'related_brand', 'related_branch', 'related_person'
+        )
 
     @action(detail=True, methods=['post'])
     def mark_as_paid(self, request, pk=None):
@@ -465,21 +492,6 @@ class PromissoryNoteViewSet(viewsets.ModelViewSet):
             due_date__lt=timezone.now().date(),
             payment_status='pending'
         )
-        serializer = self.get_serializer(notes, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'])
-    def upcoming(self, request):
-        """Yakında vadesi gelecek senetler"""
-        days = int(request.query_params.get('days', 30))
-        threshold_date = timezone.now().date() + timedelta(days=days)
-        
-        notes = self.get_queryset().filter(
-            due_date__lte=threshold_date,
-            due_date__gte=timezone.now().date(),
-            payment_status='pending'
-        )
-        
         serializer = self.get_serializer(notes, many=True)
         return Response(serializer.data)
 
@@ -511,9 +523,6 @@ class PromissoryNoteViewSet(viewsets.ModelViewSet):
 
 class FinancialRecordViewSet(viewsets.ModelViewSet):
     """Mali Kayıt ViewSet"""
-    queryset = FinancialRecord.objects.all().select_related(
-        'created_by', 'related_company', 'related_brand', 'related_branch', 'related_person'
-    )
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = FinancialRecordFilter
@@ -525,6 +534,11 @@ class FinancialRecordViewSet(viewsets.ModelViewSet):
         if self.action == 'list':
             return FinancialRecordListSerializer
         return FinancialRecordDetailSerializer
+
+    def get_queryset(self):
+        return FinancialRecord.objects.select_related(
+            'created_by', 'related_company', 'related_brand', 'related_branch', 'related_person'
+        )
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
@@ -546,23 +560,17 @@ class FinancialRecordViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def export(self, request):
         """Mali kayıtları export et"""
+        from .utils import export_financial_records_to_excel, export_financial_records_to_pdf
+        
         export_format = request.query_params.get('format', 'excel')
         queryset = self.filter_queryset(self.get_queryset())
         
         if export_format == 'excel':
-            from .utils import export_financial_records_to_excel
             file_path = export_financial_records_to_excel(queryset)
-            return Response({
-                'download_url': file_path,
-                'format': 'excel'
-            })
+            return Response({'download_url': file_path, 'format': 'excel'})
         elif export_format == 'pdf':
-            from .utils import export_financial_records_to_pdf
             file_path = export_financial_records_to_pdf(queryset)
-            return Response({
-                'download_url': file_path,
-                'format': 'pdf'
-            })
+            return Response({'download_url': file_path, 'format': 'pdf'})
         
         return Response({'error': 'Geçersiz format'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -620,7 +628,11 @@ class DashboardViewSet(viewsets.ViewSet):
             
             # Son eklenenler
             'recent_companies': CompanyListSerializer(
-                Company.objects.all()[:5], many=True
+                Company.objects.annotate(
+                    brand_count=Count('brands'),
+                    total_branches=Count('brands__branches'),
+                    total_people=Count('brands__branches__people')
+                ).all()[:5], many=True
             ).data,
             'recent_reports': ReportListSerializer(
                 Report.objects.all()[:5], many=True
