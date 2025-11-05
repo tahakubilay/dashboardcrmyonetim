@@ -14,6 +14,6 @@ venv/
 node_modules/
 
 .next/
-readme.md
+README.md
 quickstart.md
 hızlıkurulum.md
