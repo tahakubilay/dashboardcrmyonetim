@@ -104,7 +104,7 @@ export default function BranchesPage() {
       accessorKey: 'created_at',
       cell: (row: Branch) => formatDate(row.created_at),
     },
-  ]
+  ] as const;
 
   return (
     <ProtectedLayout>
@@ -142,7 +142,7 @@ export default function BranchesPage() {
 
         {/* Table */}
         <DataTable
-          columns={columns}
+          columns={[...columns]}
           data={filteredBranches}
           loading={loading}
           onDelete={handleDelete}

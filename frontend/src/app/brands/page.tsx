@@ -103,7 +103,7 @@ export default function BrandsPage() {
       accessorKey: 'created_at',
       cell: (row: Brand) => formatDate(row.created_at),
     },
-  ]
+  ] as const;
 
   return (
     <ProtectedLayout>
@@ -141,7 +141,7 @@ export default function BrandsPage() {
 
         {/* Table */}
         <DataTable
-          columns={columns}
+          columns={[...columns]}
           data={filteredBrands}
           loading={loading}
           onDelete={handleDelete}

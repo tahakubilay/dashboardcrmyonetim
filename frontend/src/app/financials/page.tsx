@@ -131,7 +131,7 @@ export default function FinancialsPage() {
       accessorKey: 'created_at',
       cell: (row: FinancialRecord) => formatDate(row.created_at),
     },
-  ]
+  ] as const;
 
   return (
     <ProtectedLayout>
@@ -237,7 +237,7 @@ export default function FinancialsPage() {
 
         {/* Table */}
         <DataTable
-          columns={columns}
+          columns={[...columns]}
           data={filteredRecords}
           loading={loading}
           onDelete={handleDelete}

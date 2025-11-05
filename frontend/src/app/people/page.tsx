@@ -137,7 +137,7 @@ export default function PeoplePage() {
       accessorKey: 'created_at',
       cell: (row: Person) => formatDate(row.created_at),
     },
-  ]
+  ] as const;
 
   return (
     <ProtectedLayout>
@@ -208,7 +208,7 @@ export default function PeoplePage() {
 
         {/* Table */}
         <DataTable
-          columns={columns}
+          columns={[...columns]}
           data={filteredPeople}
           loading={loading}
           onDelete={handleDelete}

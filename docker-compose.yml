@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U corporate_user"]
+      test: ["CMD-SHELL", "pg_isready -U corporate_user -d corporate_db"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -85,10 +85,10 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
       - web
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+   # volumes:
+    #  - ./frontend:/app
+    #  - /app/node_modules
+   #   - /app/.next
 
   nginx:
     build:

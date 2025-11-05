@@ -106,7 +106,7 @@ export default function ContractsPage() {
         </Badge>
       ),
     },
-  ]
+  ] as const;
 
   return (
     <ProtectedLayout>
@@ -144,7 +144,7 @@ export default function ContractsPage() {
 
         {/* Table */}
         <DataTable
-          columns={columns}
+          columns={[...columns]}
           data={filteredContracts}
           loading={loading}
           onDelete={handleDelete}

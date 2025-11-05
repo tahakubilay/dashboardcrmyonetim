@@ -107,7 +107,7 @@ export default function PromissoryNotesPage() {
         <span className="text-sm text-muted-foreground">{row.related_entity}</span>
       ),
     },
-  ]
+  ] as const;
 
   return (
     <ProtectedLayout>
@@ -160,7 +160,7 @@ export default function PromissoryNotesPage() {
 
         {/* Table */}
         <DataTable
-          columns={columns}
+          columns={[...columns]}
           data={filteredNotes}
           loading={loading}
           onDelete={handleDelete}

@@ -118,7 +118,7 @@ export default function ReportsPage() {
       accessorKey: 'created_at',
       cell: (row: Report) => formatDate(row.created_at),
     },
-  ]
+  ] as const;
 
   return (
     <ProtectedLayout>
@@ -186,7 +186,7 @@ export default function ReportsPage() {
 
         {/* Table */}
         <DataTable
-          columns={columns}
+          columns={[...columns]}
           data={filteredReports}
           loading={loading}
           onDelete={handleDelete}
