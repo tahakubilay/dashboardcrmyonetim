@@ -1,0 +1,16 @@
+# İşletim sistemi dosyaları
+.DS_Store
+Thumbs.db
+
+# VS Code ayar klasörü
+.vscode/
+
+# Hassas bilgiler
+.env
+venv/
+*.log
+
+# Eğer Node.js projesi ise
+node_modules/
+
+.next/
