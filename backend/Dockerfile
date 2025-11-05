@@ -18,7 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN python manage.py collectstatic --noinput || true
+# django admin panel teması aktif olsun diye migrate esnasında static klasörüne işlenmesi için ana dizindeki YAML dosyasına entegre ettim
+# RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 8000
 
