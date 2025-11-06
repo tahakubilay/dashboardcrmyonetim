@@ -1,5 +1,6 @@
 'use client'
 
+import { FinancialRecordFormModal } from '@/components/forms/financial-record-form-modal'
 import { useState, useEffect } from 'react'
 import { ProtectedLayout } from '@/components/layout/protected-layout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +28,8 @@ export default function FinancialsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [summary, setSummary] = useState<any>(null)
   const { success, error } = useToast()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  
 
   useEffect(() => {
     fetchRecords()
@@ -149,9 +152,9 @@ export default function FinancialsPage() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button>
+            <Button onClick={() => setShowCreateModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Yeni Kayıt
+              Yeni Senet
             </Button>
           </div>
         </div>
@@ -243,7 +246,19 @@ export default function FinancialsPage() {
           onDelete={handleDelete}
         />
       </div>
+      {/* Create Modal */}
+      {showCreateModal && (
+        <FinancialRecordFormModal
+          open={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false)
+            fetchRecords()
+            fetchSummary()
+          }}
+        />
+      )}
+
     </ProtectedLayout>
   )
 }
-

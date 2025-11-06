@@ -51,21 +51,22 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Optimize query with annotations"""
+        from django.db.models import Count
         queryset = Company.objects.all()
-        
-        # List view için optimize edilmiş query
-        if self.action == 'list':
-            queryset = queryset.annotate(
-                brand_count=Count('brands', distinct=True),
-                total_branches=Count('brands__branches', distinct=True),
-                total_people=Count('brands__branches__people', distinct=True)
-            ).select_related().prefetch_related('brands')
-        else:
+    
+    # Her durumda annotation'ları ekle
+        queryset = queryset.annotate(
+            brand_count=Count('brands', distinct=True),
+            total_branches=Count('brands__branches', distinct=True),
+            total_people=Count('brands__branches__people', distinct=True)
+        )
+    
+        if self.action == 'retrieve':
             # Detail view için daha detaylı prefetch
             queryset = queryset.prefetch_related(
                 Prefetch('brands', queryset=Brand.objects.all()[:5])
             )
-        
+    
         return queryset
 
     @action(detail=True, methods=['get'])
@@ -205,14 +206,14 @@ class BranchViewSet(viewsets.ModelViewSet):
         return BranchDetailSerializer
 
     def get_queryset(self):
+        from django.db.models import Count, Q
         queryset = Branch.objects.select_related('brand', 'brand__company')
-        
-        # Annotate employee count
-        if self.action == 'list':
-            queryset = queryset.annotate(
-                employee_count=Count('people', filter=Q(people__role__name='employee'))
-            )
-        
+    
+        # Her durumda employee_count ekle
+        queryset = queryset.annotate(
+            employee_count=Count('people', filter=Q(people__role__name='employee'), distinct=True)
+        )
+    
         return queryset
 
     @action(detail=True, methods=['get'])

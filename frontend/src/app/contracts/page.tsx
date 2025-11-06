@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ProtectedLayout } from '@/components/layout/protected-layout'
 import { DataTable } from '@/components/tables/data-table'
+import { ContractFormModal } from '@/components/forms/contract-form-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +17,7 @@ export default function ContractsPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const { success, error } = useToast()
 
   useEffect(() => {
@@ -124,7 +126,7 @@ export default function ContractsPage() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button>
+            <Button onClick={() => setShowCreateModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Yeni Sözleşme
             </Button>
@@ -149,6 +151,18 @@ export default function ContractsPage() {
           loading={loading}
           onDelete={handleDelete}
         />
+
+        {/* Create Modal */}
+        {showCreateModal && (
+          <ContractFormModal
+            open={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onSuccess={() => {
+              setShowCreateModal(false)
+              fetchContracts()
+            }}
+          />
+        )}
       </div>
     </ProtectedLayout>
   )

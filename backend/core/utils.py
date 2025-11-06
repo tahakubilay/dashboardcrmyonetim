@@ -21,6 +21,115 @@ def generate_unique_filename(prefix, extension):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     return f"{prefix}_{timestamp}.{extension}"
 
+def export_companies_to_excel(queryset):
+    """Şirketleri Excel'e export et"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Şirketler"
+    
+    # Header
+    headers = ['Şirket Ünvanı', 'Vergi No', 'E-posta', 'IBAN', 'Marka Sayısı', 'Durum', 'Oluşturma']
+    ws.append(headers)
+    
+    # Style header
+    for cell in ws[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    
+    # Data
+    for company in queryset:
+        ws.append([
+            company.title,
+            company.tax_number,
+            company.email,
+            company.iban or '-',
+            company.brand_count if hasattr(company, 'brand_count') else company.brands.count(),
+            'Aktif' if company.is_active else 'Pasif',
+            company.created_at.strftime('%Y-%m-%d'),
+        ])
+    
+    # Auto-width
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws.column_dimensions[column_letter].width = adjusted_width
+    
+    # Save
+    filename = generate_unique_filename('sirketler', 'xlsx')
+    filepath = os.path.join(settings.MEDIA_ROOT, 'exports', filename)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    wb.save(filepath)
+    
+    return f"{settings.MEDIA_URL}exports/{filename}"
+
+
+def export_companies_to_pdf(queryset):
+    """Şirketleri PDF'e export et"""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    
+    filename = generate_unique_filename('sirketler', 'pdf')
+    filepath = os.path.join(settings.MEDIA_ROOT, 'exports', filename)
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    
+    doc = SimpleDocTemplate(filepath, pagesize=landscape(A4))
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        textColor=colors.HexColor('#366092'),
+        spaceAfter=20
+    )
+    elements.append(Paragraph("Şirketler Listesi", title_style))
+    elements.append(Spacer(1, 12))
+    
+    # Table
+    data = [['Şirket', 'Vergi No', 'E-posta', 'Marka Sayısı', 'Durum']]
+    for company in queryset[:100]:
+        data.append([
+            company.title[:30],
+            company.tax_number,
+            company.email[:25],
+            str(company.brand_count if hasattr(company, 'brand_count') else company.brands.count()),
+            'Aktif' if company.is_active else 'Pasif',
+        ])
+    
+    table = Table(data, colWidths=[6*cm, 3*cm, 5*cm, 2.5*cm, 2*cm])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#366092')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    
+    return f"{settings.MEDIA_URL}exports/{filename}"
+
+
 
 def export_reports_to_excel(queryset):
     """Raporları Excel'e export et"""
@@ -415,3 +524,4 @@ def calculate_date_difference(start_date, end_date):
 
 # Import Sum at the top
 from django.db.models import Sum
+

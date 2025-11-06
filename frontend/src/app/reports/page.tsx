@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ProtectedLayout } from '@/components/layout/protected-layout'
 import { DataTable } from '@/components/tables/data-table'
+import { ReportFormModal } from '@/components/forms/report-form-modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'

@@ -1,5 +1,6 @@
 'use client'
 
+import { PromissoryNoteFormModal } from '@/components/forms/promissory-note-form-modal'
 import { useState, useEffect } from 'react'
 import { ProtectedLayout } from '@/components/layout/protected-layout'
 import { DataTable } from '@/components/tables/data-table'
@@ -12,11 +13,13 @@ import { Plus, Search, Download, AlertTriangle } from 'lucide-react'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 
+
 export default function PromissoryNotesPage() {
   const [notes, setNotes] = useState<PromissoryNote[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const { success, error } = useToast()
+  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     fetchNotes()
@@ -125,7 +128,7 @@ export default function PromissoryNotesPage() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            <Button>
+            <Button onClick={() => setShowCreateModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Yeni Senet
             </Button>
@@ -166,6 +169,16 @@ export default function PromissoryNotesPage() {
           onDelete={handleDelete}
         />
       </div>
+      {showCreateModal && (
+        <PromissoryNoteFormModal
+          open={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={() => {
+            setShowCreateModal(false)
+            fetchNotes()
+          }}
+        />
+      )}
     </ProtectedLayout>
   )
 }
